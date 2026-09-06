@@ -18,7 +18,7 @@
     <div class="flex flex-col md:flex-row justify-between items-center pb-6 mb-6 border-b border-gray-200 gap-4">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">تعديل الطلب #<span id="display-order-id" class="text-blue-600">---</span></h1>
-            <p class="text-sm text-gray-500">إدارة البيانات المرتبطة برقم الطلب id_web_order</p>
+            <p class="text-sm text-gray-500">إدارة البيانات والمرتبطة برقم الطلب (id_web_order)</p>
         </div>
         
         <div class="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
@@ -94,7 +94,7 @@
         <!-- 3. الحسابات والتفاصيل المالية -->
         <div class="bg-gray-50 p-4 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 border border-gray-200">
             <div class="text-gray-700 text-sm">
-                إجمالي العمولات: <span id="total-commission" class="font-bold text-gray-900 text-base mr-1">0.00</span>
+                إجمالي العمولات المفترضة: <span id="total-commission" class="font-bold text-green-600 text-base mr-1">0.00</span>
             </div>
             <div class="text-gray-800 font-bold text-lg">
                 المبلغ الإجمالي (total_amount): <span id="total-amount" class="text-blue-600 text-xl mr-1">0.00</span>
@@ -124,7 +124,7 @@ let currentOrderId = null;
 window.addEventListener('DOMContentLoaded', async () => {
     console.log("تجهيز التطبيق للاتصال بـ Supabase...");
     
-    // جلب قائمة المنتجات وقائمة أحدث الطلبات
+    // جلب قائمة المنتجات أولاً للتأكد من المزامنة مع العمولات والأسعار
     await fetchProducts();
     await fetchOrdersDropdown();
 
@@ -136,12 +136,11 @@ window.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('search-order-id').value = orderIdParam;
         await loadOrderData(orderIdParam);
     } else {
-        // جلب أحدث طلب تلقائياً في حال عدم تحديد id_web_order بطلب مباشر
         await loadLatestOrder();
     }
 });
 
-// جلب المنتجات المتاحة من جدول products
+// جلب المنتجات المتاحة مع العمولات والأسعار من جدول products
 async function fetchProducts() {
     try {
         const { data, error } = await supabase
@@ -150,14 +149,14 @@ async function fetchProducts() {
 
         if (error) throw error;
         productsList = data || [];
-        console.log('المنتجات المتاحة:', productsList);
+        console.log('جدول المنتجات والعمولات المجلوب من products:', productsList);
     } catch (err) {
         console.error('خطأ جلب المنتجات:', err);
-        showMessage(`فشل جلب جدول المنتجات (products): ${err.message}`, 'error');
+        showMessage(`فشل جلب المنتجات والعمولات من جدول products: ${err.message}`, 'error');
     }
 }
 
-// جلب أحدث قائمة من id_web_order للتسهيل في قائمة الاختيار المنسدلة
+// جلب أحدث قائمة من id_web_order لتسليم القائمة المنسدلة
 async function fetchOrdersDropdown() {
     try {
         const { data: orders, error } = await supabase
@@ -180,7 +179,7 @@ async function fetchOrdersDropdown() {
     }
 }
 
-// تحميل أحدث طلب موجود في قاعدة البيانات تلقائياً
+// تحميل أحدث طلب تلقائياً
 async function loadLatestOrder() {
     try {
         const { data, error } = await supabase
@@ -203,7 +202,7 @@ async function loadLatestOrder() {
     }
 }
 
-// 3. جلب بيانات طلب حقيقي محدد باستخدام id_web_order
+// 3. جلب بيانات الطلب وتأكيد المطابقة مع عمولة جدول products
 async function loadOrderData(targetOrderId) {
     if (!targetOrderId) {
         showMessage('يرجى إدخال id_web_order صحيح للبحث', 'error');
@@ -213,7 +212,7 @@ async function loadOrderData(targetOrderId) {
     try {
         showMessage(`جاري جلب الطلب id_web_order = ${targetOrderId}...`, 'info');
 
-        // أ) جلب بيانات العميل والطلب من جدول web_orders
+        // جلب البيانات من جدول web_orders
         const { data: order, error: orderErr } = await supabase
             .from('web_orders')
             .select('*')
@@ -227,7 +226,7 @@ async function loadOrderData(targetOrderId) {
             return;
         }
 
-        // ب) جلب تفاصيل الطلب والمنتجات من جدول web_order_details
+        // جلب التفاصيل والمنتجات من web_order_details
         const { data: details, error: detailsErr } = await supabase
             .from('web_order_details')
             .select('*')
@@ -235,7 +234,6 @@ async function loadOrderData(targetOrderId) {
 
         if (detailsErr) throw detailsErr;
 
-        // تعبئة البيانات في الصفحة
         currentOrderId = order.id_web_order;
         document.getElementById('display-order-id').textContent = currentOrderId;
         document.getElementById('search-order-id').value = currentOrderId;
@@ -246,42 +244,40 @@ async function loadOrderData(targetOrderId) {
         document.getElementById('client_second_phone').value = order.client_second_phone || '';
         document.getElementById('client_address').value = order.client_address || '';
 
-        // تفريغ جدول المنتجات القديمة وتعبئتها
         const tbody = document.getElementById('products-table-body');
         tbody.innerHTML = '';
 
         if (details && details.length > 0) {
             details.forEach(item => addProductRow(item));
         } else {
-            addProductRow(); // سطر فارغ للاختيار في حال عدم وجود منتجات سابقة
+            addProductRow();
         }
 
         recalculateAll();
-        showMessage(`تم جلب بيانات الطلب #${currentOrderId} الحقيقية بنجاح`, 'success');
+        showMessage(`تم جلب بيانات الطلب #${currentOrderId} وتحديث العمولات من جدول products بنجاح`, 'success');
     } catch (err) {
         console.error('فشل جلب البيانات:', err);
         showMessage('حدث خطأ أثناء جلب البيانات: ' + err.message, 'error');
     }
 }
 
-// عند اختيار طلب من القائمة المنسدلة
-function onOrderDropdownChange(selectEl) {
-    if (selectEl.value) {
-        loadOrderData(selectEl.value);
-    }
-}
-
-// 4. بناء صفوف المنتجات وتفاعلاتها
+// 4. بناء صفوف المنتجات واستخراج العمولة الحقيقية من جدول products
 function addProductRow(detailData = null) {
     const tbody = document.getElementById('products-table-body');
     const rowId = 'row_' + Math.random().toString(36).substring(2, 9);
 
     let productOptions = productsList.map(p => {
         const isSelected = detailData && detailData.id_product == p.id_product ? 'selected' : '';
-        return `<option value="${p.id_product}" data-price="${p.seal_price || 0}" data-commission="${p.commission || 0}" ${isSelected}>
-                    ${p.product_name}
+        const unitCommission = p.commission !== undefined && p.commission !== null ? p.commission : 0;
+        const unitPrice = p.seal_price !== undefined && p.seal_price !== null ? p.seal_price : 0;
+
+        return `<option value="${p.id_product}" data-price="${unitPrice}" data-commission="${unitCommission}" ${isSelected}>
+                    ${p.product_name} (عمولة: ${unitCommission})
                 </option>`;
     }).join('');
+
+    const initialQte = detailData ? detailData.qte : 1;
+    const initialPrice = detailData ? detailData.price : 0;
 
     const rowHTML = `
         <tr id="${rowId}" class="hover:bg-gray-50 transition">
@@ -292,16 +288,16 @@ function addProductRow(detailData = null) {
                 </select>
             </td>
             <td class="p-2">
-                <input type="number" min="0.1" step="any" value="${detailData ? detailData.qte : 1}" oninput="calculateRow(this)" class="qte-input w-full border rounded-lg p-2 text-center text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <input type="number" min="0.1" step="any" value="${initialQte}" oninput="calculateRow(this)" class="qte-input w-full border rounded-lg p-2 text-center text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
             </td>
             <td class="p-2">
-                <input type="number" min="0" step="any" value="${detailData ? detailData.price : 0}" oninput="calculateRow(this)" class="price-input w-full border rounded-lg p-2 text-center text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <input type="number" min="0" step="any" value="${initialPrice}" oninput="calculateRow(this)" class="price-input w-full border rounded-lg p-2 text-center text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
             </td>
             <td class="p-2 text-center font-bold text-gray-700 amount-cell">
-                ${detailData ? (detailData.amount || 0).toFixed(2) : '0.00'}
+                0.00
             </td>
-            <td class="p-2 text-center text-gray-600 commission-cell">
-                ${detailData ? (detailData.commission || 0).toFixed(2) : '0.00'}
+            <td class="p-2 text-center font-semibold text-green-700 commission-cell">
+                0.00
             </td>
             <td class="p-2 text-center">
                 <button type="button" onclick="deleteRow('${rowId}')" class="text-red-500 hover:text-red-700 p-1">
@@ -312,13 +308,28 @@ function addProductRow(detailData = null) {
     `;
 
     tbody.insertAdjacentHTML('beforeend', rowHTML);
+
+    const newRow = document.getElementById(rowId);
+    const selectEl = newRow.querySelector('.product-select');
+
+    // إذا كانت هناك بيانات مسجلة مسبقاً للطلب أو تم تحديد منتج
+    if (selectEl.value) {
+        const selectedOption = selectEl.options[selectEl.selectedIndex];
+        
+        // إذا كان السعر المسجل صفر أو لم يحدد، نعتمد سعر المنتجات
+        if (!initialPrice && selectedOption) {
+            newRow.querySelector('.price-input').value = parseFloat(selectedOption.getAttribute('data-price')) || 0;
+        }
+    }
+
+    calculateRow(selectEl);
 }
 
 function onProductSelect(selectEl) {
     const row = selectEl.closest('tr');
     const selectedOption = selectEl.options[selectEl.selectedIndex];
 
-    if (selectedOption.value) {
+    if (selectedOption && selectedOption.value) {
         const defaultPrice = parseFloat(selectedOption.getAttribute('data-price')) || 0;
         row.querySelector('.price-input').value = defaultPrice;
     }
@@ -332,13 +343,15 @@ function calculateRow(inputEl) {
 
     const qte = parseFloat(row.querySelector('.qte-input').value) || 0;
     const price = parseFloat(row.querySelector('.price-input').value) || 0;
-    const unitCommission = parseFloat(selectedOption?.getAttribute('data-commission')) || 0;
+    
+    // جلب العمولة الفردية المحددة في جدول المنتجات products
+    const unitCommission = selectedOption && selectedOption.value ? (parseFloat(selectedOption.getAttribute('data-commission')) || 0) : 0;
 
     const amount = qte * price;
-    const commission = qte * unitCommission;
+    const rowCommission = qte * unitCommission;
 
     row.querySelector('.amount-cell').textContent = amount.toFixed(2);
-    row.querySelector('.commission-cell').textContent = commission.toFixed(2);
+    row.querySelector('.commission-cell').textContent = rowCommission.toFixed(2);
 
     recalculateAll();
 }
@@ -362,7 +375,13 @@ function recalculateAll() {
     document.getElementById('total-commission').textContent = totalCommission.toFixed(2);
 }
 
-// 5. حفظ التعديلات وحكم الربط التداخلي مع Supabase
+function onOrderDropdownChange(selectEl) {
+    if (selectEl.value) {
+        loadOrderData(selectEl.value);
+    }
+}
+
+// 5. حفظ البيانات والتأكد من إرسال العمولة لجدول web_order_details
 async function handleFormSubmit(e) {
     e.preventDefault();
 
@@ -396,7 +415,7 @@ async function handleFormSubmit(e) {
 
         if (orderUpdateErr) throw orderUpdateErr;
 
-        // حذف المنتجات القديمة من web_order_details وإعادة إدراج المحدثة
+        // حذف تفاصيل المنتجات القديمة لضمان عدم التكرار
         const { error: deleteErr } = await supabase
             .from('web_order_details')
             .delete()
@@ -404,20 +423,26 @@ async function handleFormSubmit(e) {
 
         if (deleteErr) throw deleteErr;
 
+        // بناء قائمة المنتجات الجديدة مع العمولات الدقيقة
         const rows = document.querySelectorAll('#products-table-body tr');
         const newDetails = [];
 
         rows.forEach(row => {
             const select = row.querySelector('.product-select');
-            if (select.value) {
+            if (select && select.value) {
+                const selectedOption = select.options[select.selectedIndex];
+                const unitCommission = parseFloat(selectedOption.getAttribute('data-commission')) || 0;
+                const qte = parseFloat(row.querySelector('.qte-input').value) || 0;
+                const price = parseFloat(row.querySelector('.price-input').value) || 0;
+
                 newDetails.push({
                     id_web_order: currentOrderId,
                     id_product: parseInt(select.value),
-                    product_name: select.options[select.selectedIndex].text.trim(),
-                    qte: parseFloat(row.querySelector('.qte-input').value) || 0,
-                    price: parseFloat(row.querySelector('.price-input').value) || 0,
-                    amount: parseFloat(row.querySelector('.amount-cell').textContent) || 0,
-                    commission: parseFloat(row.querySelector('.commission-cell').textContent) || 0
+                    product_name: selectedOption.text.split('(عمولة:')[0].trim(),
+                    qte: qte,
+                    price: price,
+                    amount: qte * price,
+                    commission: qte * unitCommission // لحساب إجمالي العمولة للمنتج المختار وربطها بجدول التفاصيل
                 });
             }
         });
@@ -430,8 +455,8 @@ async function handleFormSubmit(e) {
             if (insertErr) throw insertErr;
         }
 
-        showMessage(`تم تحديث بيانات الطلب #${currentOrderId} بنجاح!`, 'success');
-        fetchOrdersDropdown(); // تحديث القائمة المنسدلة
+        showMessage(`تم تحديث الطلب #${currentOrderId} وحفظ العمولات بنجاح!`, 'success');
+        fetchOrdersDropdown();
     } catch (err) {
         console.error('خطأ أثناء الحفظ:', err);
         showMessage('تعذر حفظ البيانات: ' + err.message, 'error');
@@ -441,7 +466,7 @@ async function handleFormSubmit(e) {
     }
 }
 
-// 6. دوال التنظيف والإظهار
+// 6. دوال التنظيف وإظهار التنبيهات
 function showMessage(msg, type) {
     const box = document.getElementById('status-message');
     box.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
