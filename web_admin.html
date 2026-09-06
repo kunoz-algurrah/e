@@ -737,7 +737,6 @@
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)" class="input-field">
                         <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)" class="input-field">
-                        <input type="number" placeholder="تعديل العمولة" value="${order.custom_commission !== undefined ? order.custom_commission : ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)" class="input-field input-commission">
                     </div>
 
@@ -770,7 +769,6 @@
                     </td>
                     <td>
                         <div id="comm-desktop-${order.id_web_order}" style="font-weight: bold; color: #b45309; margin-bottom: 4px;">💵 ${activeCommission.toFixed(2)} ج.س</div>
-                        <input type="number" placeholder="تعديل العمولة" value="${order.custom_commission !== undefined ? order.custom_commission : ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)" class="input-field input-commission" style="width: 110px;">
                     </td>
                     <td>${statusBadge}</td>
