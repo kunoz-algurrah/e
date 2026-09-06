@@ -20,7 +20,7 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-xl font-bold">تعديل الطلب #<span id="active-order-id" class="text-yellow-400">---</span></h1>
-                <p class="text-xs text-gray-300 mt-1">جلب القيمة المخزنة للعمولة تلقائياً وإمكانية تعديلها</p>
+                <p class="text-xs text-gray-300 mt-1">جلب العمولة مباشرة من جدول المنتجات (products) مع إمكانية التعديل</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -66,10 +66,10 @@
             </div>
         </div>
 
-        <!-- 2. المنتجات والتفاصيل من web_order_details + products -->
+        <!-- 2. المنتجات والتفاصيل -->
         <div class="mb-8">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-base font-bold text-gray-800 border-r-4 border-blue-600 pr-3">منتجات الطلب والعمولات (web_order_details)</h2>
+                <h2 class="text-base font-bold text-gray-800 border-r-4 border-blue-600 pr-3">منتجات الطلب والعمولات</h2>
                 <button type="button" id="btn-add-row" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-2 rounded-lg font-medium transition">
                     <i class="fas fa-plus ml-1"></i> إضافة منتج جديد
                 </button>
@@ -82,7 +82,7 @@
                             <th class="p-3">المنتج</th>
                             <th class="p-3 w-24 text-center">الكمية</th>
                             <th class="p-3 w-28 text-center">السعر</th>
-                            <th class="p-3 w-28 text-center">عمولة القطعة</th>
+                            <th class="p-3 w-32 text-center">عمولة القطعة (من products)</th>
                             <th class="p-3 w-28 text-center">المجموع</th>
                             <th class="p-3 w-28 text-center">إجمالي العمولة</th>
                             <th class="p-3 w-16 text-center">إزالة</th>
@@ -158,7 +158,7 @@ function showAlert(msg, type = 'info') {
     box.textContent = msg;
 }
 
-// 3. جلب جدول المنتجات الكامل
+// 3. جلب قائمة المنتجات مع عمولتها وأسعارها المخزنة في جدول products
 async function loadProducts() {
     try {
         const { data, error } = await client
@@ -167,6 +167,7 @@ async function loadProducts() {
 
         if (error) throw error;
         globalProducts = data || [];
+        console.log("تم جلب المنتجات والعمولات الاصليّة:", globalProducts);
     } catch (err) {
         console.error("خطأ جلب المنتجات:", err);
         showAlert("فشل جلب المنتجات من جدول products: " + err.message, "error");
@@ -217,7 +218,7 @@ async function fetchSingleOrder(orderId) {
 
         if (orderErr) throw orderErr;
 
-        // ب) جلب بيانات web_order_details الكاملة
+        // ب) جلب بيانات web_order_details
         const { data: details, error: detailsErr } = await client
             .from('web_order_details')
             .select('*')
@@ -255,21 +256,24 @@ async function fetchSingleOrder(orderId) {
     }
 }
 
-// 6. إضافة صف لجدول المنتجات وقراءة العمولة المخزنة أو الافتراضية
+// 6. إضافة صف وقراءة العمولة **مباشرةً من جدول products الأصلي**
 function addNewRow(data = null) {
     const tbody = document.getElementById('items-tbody');
     const tr = document.createElement('tr');
     tr.className = "hover:bg-gray-50 transition";
 
-    let productDefaultCommission = 0;
+    let fetchedCommissionFromProducts = 0;
 
-    // خيارات المنتجات
+    // بناء خيارات قائمة المنتجات
     let options = `<option value="">-- اختر المنتج --</option>`;
     globalProducts.forEach(p => {
         const isSelected = data && data.id_product == p.id_product;
+        
+        // البحث عن العمولة الأصلية للمنتج من قائمة المنتجات
         if (isSelected) {
-            productDefaultCommission = p.commission || 0;
+            fetchedCommissionFromProducts = p.commission || 0;
         }
+
         options += `<option value="${p.id_product}" data-price="${p.seal_price || 0}" data-commission="${p.commission || 0}" ${isSelected ? 'selected' : ''}>
             ${p.product_name}
         </option>`;
@@ -278,15 +282,8 @@ function addNewRow(data = null) {
     const defaultQte = data ? data.qte : 1;
     const defaultPrice = data ? data.price : 0;
     
-    // منطق جلب العمولة:
-    // 1. القيمة المخزنة سابقاً في web_order_details (سواء كانت 0 أو غيرها)
-    // 2. إذا كان صفاً جديداً تماماً (data === null)، تُجلب العمولة الافتراضية من جدول products
-    let initialCommission = 0;
-    if (data !== null && data.commission !== undefined && data.commission !== null) {
-        initialCommission = data.commission;
-    } else {
-        initialCommission = productDefaultCommission;
-    }
+    // اعتماد القيمة المجلوبة من جدول products مباشرة
+    const commissionValue = fetchedCommissionFromProducts;
 
     tr.innerHTML = `
         <td class="p-2">
@@ -301,7 +298,7 @@ function addNewRow(data = null) {
             <input type="number" min="0" step="any" value="${defaultPrice}" class="prod-price w-full border rounded-lg p-2 text-center text-xs focus:ring-2 focus:ring-blue-500 outline-none">
         </td>
         <td class="p-2">
-            <input type="number" min="0" step="any" value="${initialCommission}" class="prod-commission w-full border border-emerald-300 bg-emerald-50 rounded-lg p-2 text-center text-xs font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+            <input type="number" min="0" step="any" value="${commissionValue}" class="prod-commission w-full border border-emerald-300 bg-emerald-50 rounded-lg p-2 text-center text-xs font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none">
         </td>
         <td class="p-2 text-center font-bold text-gray-700 cell-amount">0.00</td>
         <td class="p-2 text-center font-bold text-emerald-600 cell-total-commission">0.00</td>
@@ -320,12 +317,14 @@ function addNewRow(data = null) {
     const commInput = tr.querySelector('.prod-commission');
     const removeBtn = tr.querySelector('.btn-remove');
 
-    // عند تغيير المنتج يدوياً يتم تحديث السعر والعمولة الافتراضية
+    // عند تغيير خيار المنتج في القائمة يتم تحديث عمولة المنتج وسعره فوراً من جدول المنتجات
     select.addEventListener('change', () => {
         const opt = select.options[select.selectedIndex];
         if (opt && opt.value) {
             priceInput.value = opt.getAttribute('data-price') || 0;
             commInput.value = opt.getAttribute('data-commission') || 0;
+        } else {
+            commInput.value = 0;
         }
         updateRowCalculation(tr);
     });
@@ -342,7 +341,7 @@ function addNewRow(data = null) {
     updateRowCalculation(tr);
 }
 
-// 7. حساب الصف
+// 7. حساب الصف بناءً على قيم العمولة
 function updateRowCalculation(tr) {
     const qte = parseFloat(tr.querySelector('.prod-qte').value) || 0;
     const price = parseFloat(tr.querySelector('.prod-price').value) || 0;
@@ -371,7 +370,7 @@ function recalculateTotal() {
     document.getElementById('summary-commission').textContent = totalCommission.toFixed(2);
 }
 
-// 9. حفظ والتعديل
+// 9. حفظ التعديلات
 async function handleSave(e) {
     e.preventDefault();
 
@@ -405,7 +404,7 @@ async function handleSave(e) {
 
         if (updateOrderErr) throw updateOrderErr;
 
-        // ب) حذف التفاصيل القديمة
+        // ب) حذف تفاصيل الطلب القديمة
         const { error: deleteErr } = await client
             .from('web_order_details')
             .delete()
@@ -413,7 +412,7 @@ async function handleSave(e) {
 
         if (deleteErr) throw deleteErr;
 
-        // ج) إدراج التفاصيل الجديدة بالعمولة المحددة
+        // ج) إدراج التفاصيل الجديدة
         const newDetails = [];
         document.querySelectorAll('#items-tbody tr').forEach(tr => {
             const select = tr.querySelector('.prod-select');
@@ -421,7 +420,6 @@ async function handleSave(e) {
                 const opt = select.options[select.selectedIndex];
                 const qte = parseFloat(tr.querySelector('.prod-qte').value) || 0;
                 const price = parseFloat(tr.querySelector('.prod-price').value) || 0;
-                const commission = parseFloat(tr.querySelector('.prod-commission').value) || 0;
                 
                 const rawName = opt.text.trim();
 
@@ -431,28 +429,20 @@ async function handleSave(e) {
                     product_name: rawName,
                     qte: qte,
                     price: price,
-                    commission: commission,
                     amount: qte * price
                 });
             }
         });
 
         if (newDetails.length > 0) {
-            let { error: insertErr } = await client
+            const { error: insertErr } = await client
                 .from('web_order_details')
                 .insert(newDetails);
 
-            if (insertErr && insertErr.message.includes('commission')) {
-                console.warn("تنبيه: العمود commission غير متاح في قاعدة البيانات، سيتم تخزين بقية التفاصيل.");
-                const fallbackDetails = newDetails.map(({ commission, ...rest }) => rest);
-                const res = await client.from('web_order_details').insert(fallbackDetails);
-                if (res.error) throw res.error;
-            } else if (insertErr) {
-                throw insertErr;
-            }
+            if (insertErr) throw insertErr;
         }
 
-        showAlert(`تم حفظ الطلب #${currentOrderId} بجميع القيم والعمولات بنجاح!`, 'success');
+        showAlert(`تم حفظ وتحديث الطلب #${currentOrderId} بنجاح!`, 'success');
 
     } catch (err) {
         console.error("خطأ أثناء الحفظ:", err);
