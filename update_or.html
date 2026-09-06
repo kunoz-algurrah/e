@@ -6,7 +6,7 @@
     <title>تعديل بيانات الطلب</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome -->
+    <!-- Font Awesome Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -14,25 +14,25 @@
 <body class="bg-gray-100 p-4 md:p-8 font-sans">
 
 <div class="max-w-5xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-md border border-gray-200">
-    <!-- شريط البحث وعرض رقم الطلب -->
+    <!-- الهيدر وشريط البحث -->
     <div class="flex flex-col md:flex-row justify-between items-center pb-6 mb-6 border-b border-gray-200 gap-4">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">تعديل الطلب</h1>
-            <p class="text-sm text-gray-500">إدارة تفاصيل العميل والمنتجات المحددة</p>
+            <p class="text-sm text-gray-500">إدارة تفاصيل العميل والمنتجات والعمولات</p>
         </div>
         <div class="flex items-center gap-2 w-full md:w-auto">
             <input type="number" id="search-order-id" placeholder="رقم الطلب (ID)" class="border rounded-lg p-2 text-sm w-full md:w-40 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <button onclick="loadOrderData()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition flex-shrink-0">
-                <i class="fas fa-search ml-1"></i> جلب
+                <i class="fas fa-search ml-1"></i> بحث
             </button>
         </div>
     </div>
 
-    <!-- رسائل التنبيه -->
+    <!-- صندوق رسائل الحالة والتنبيهات -->
     <div id="status-message" class="hidden mb-6 p-4 rounded-lg text-sm font-medium"></div>
 
     <form id="order-form" onsubmit="handleFormSubmit(event)">
-        <!-- بيانات العميل (جدول web_orders) -->
+        <!-- 1. بيانات العميل (web_orders) -->
         <div class="mb-8">
             <h2 class="text-lg font-semibold text-gray-700 mb-4 border-r-4 border-blue-600 pr-2">بيانات العميل</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -55,7 +55,7 @@
             </div>
         </div>
 
-        <!-- جدول المنتجات (جدول web_order_details) -->
+        <!-- 2. جدول تفاصيل المنتجات (web_order_details + products) -->
         <div class="mb-8">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-semibold text-gray-700 border-r-4 border-blue-600 pr-2">تفاصيل المنتجات</h2>
@@ -73,7 +73,7 @@
                             <th class="p-3 w-32 text-center">السعر</th>
                             <th class="p-3 w-32 text-center">المجموع</th>
                             <th class="p-3 w-32 text-center">العمولة</th>
-                            <th class="p-3 w-16 text-center">حذف</th>
+                            <th class="p-3 w-16 text-center">إجراء</th>
                         </tr>
                     </thead>
                     <tbody id="products-table-body" class="divide-y divide-gray-200">
@@ -83,7 +83,7 @@
             </div>
         </div>
 
-        <!-- ملخص الحسابات الإجمالية -->
+        <!-- 3. ملخص الحسابات الإجمالية -->
         <div class="bg-gray-50 p-4 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 border border-gray-200">
             <div class="text-gray-700 text-sm">
                 إجمالي العمولات: <span id="total-commission" class="font-bold text-gray-900 text-base mr-1">0.00</span>
@@ -93,9 +93,9 @@
             </div>
         </div>
 
-        <!-- أزرار الإجراءات -->
+        <!-- أزرار الحفظ والإلغاء -->
         <div class="flex justify-end gap-3">
-            <button type="button" onclick="resetForm()" class="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-lg text-sm hover:bg-gray-300">إلغاء</button>
+            <button type="button" onclick="resetForm()" class="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-lg text-sm hover:bg-gray-300">تفريغ الحقول</button>
             <button type="submit" id="submit-btn" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm transition">
                 حفظ التعديلات
             </button>
@@ -104,19 +104,24 @@
 </div>
 
 <script>
-// 1. تهيئة الربط بـ Supabase
+// ----------------------------------------------------
+// 1. تهيئة الاتصال بـ Supabase
+// ----------------------------------------------------
 const SUPABASE_URL = 'https://ihlwkwiimimoiplfqcdk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK';
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let productsList = []; // تخزين المنتجات المجلوبة من جدول products
+let productsList = []; // مصفوفة لتخزين المنتجات المجلوبة من قاعدة البيانات
 let currentOrderId = null;
 
-// 2. تحميل قائمة المنتجات عند فتح الصفحة
+// ----------------------------------------------------
+// 2. أحداث التحميل البدائية
+// ----------------------------------------------------
 window.addEventListener('DOMContentLoaded', async () => {
+    console.log("جاري الاتصال بقاعدة البيانات...");
     await fetchProducts();
-    
-    // فحص إذا كان رقم الطلب موجوداً في رابط URL (مثال: ?id=1)
+
+    // فحص إذا تم إرسال id في الرابط (مثال: edit.html?id=5)
     const urlParams = new URLSearchParams(window.location.search);
     const orderIdParam = urlParams.get('id');
     if (orderIdParam) {
@@ -125,41 +130,59 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// جلب المنتجات من جدول products
+// جلب المنتجات المتاحة من جدول products
 async function fetchProducts() {
     try {
         const { data, error } = await supabase
             .from('products')
             .select('id_product, product_name, seal_price, commission');
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error on products:', error);
+            showMessage(`خطأ في جلب المنتجات (${error.code}): ${error.message}`, 'error');
+            return;
+        }
+
         productsList = data || [];
+        console.log('المنتجات المجلوبة:', productsList);
+
+        if (productsList.length === 0) {
+            showMessage('تنبيه: لم يتم العثور على منتجات في جدول products أو أن صلاحيات RLS تحجب القراءة.', 'error');
+        }
     } catch (err) {
-        showMessage('خطأ في تحميل قائمة المنتجات: ' + err.message, 'error');
+        console.error('Unexpected error:', err);
+        showMessage('تعذر الاتصال بالسيرفر: ' + err.message, 'error');
     }
 }
 
-// 3. جلب بيانات طلب محدد ورسمه في الصفحة
+// ----------------------------------------------------
+// 3. جلب بيانات طلب محدد بالـ ID
+// ----------------------------------------------------
 async function loadOrderData() {
-    const orderId = document.getElementById('search-order-id').value;
+    const orderId = document.getElementById('search-order-id').value.trim();
     if (!orderId) {
-        showMessage('يرجى إدخال رقم الطلب أولاً', 'error');
+        showMessage('يرجى إدخال رقم الطلب أولاً في خانة البحث', 'error');
         return;
     }
 
     try {
-        showMessage('جاري تحميل بيانات الطلب...', 'info');
+        showMessage('جاري جلب بيانات الطلب رقم: ' + orderId, 'info');
 
-        // جلب بيانات العميل من web_orders
+        // جلب البيانات من جدول web_orders
         const { data: order, error: orderErr } = await supabase
             .from('web_orders')
             .select('*')
             .eq('id_web_order', orderId)
-            .single();
+            .maybeSingle();
 
         if (orderErr) throw orderErr;
 
-        // جلب تفاصيل المنتجات من web_order_details
+        if (!order) {
+            showMessage(`لم يتم العثور على طلب برقم (${orderId})`, 'error');
+            return;
+        }
+
+        // جلب تفاصيل المنتجات للطلب من جدول web_order_details
         const { data: details, error: detailsErr } = await supabase
             .from('web_order_details')
             .select('*')
@@ -167,35 +190,39 @@ async function loadOrderData() {
 
         if (detailsErr) throw detailsErr;
 
-        // تعبئة بيانات الحقول
+        // تعبئة حقول بيانات العميل
         currentOrderId = order.id_web_order;
         document.getElementById('client_name').value = order.client_name || '';
         document.getElementById('client_phone').value = order.client_phone || '';
         document.getElementById('client_second_phone').value = order.client_second_phone || '';
         document.getElementById('client_address').value = order.client_address || '';
 
-        // تفريغ جدول المنتجات القديم وتعبئته بالبيانات الحالية
+        // تفريغ الجدول وإعادة بنائه بالبيانات الحقيقية
         const tbody = document.getElementById('products-table-body');
         tbody.innerHTML = '';
 
         if (details && details.length > 0) {
             details.forEach(item => addProductRow(item));
         } else {
-            addProductRow(); // صف فارغ في حال عدم وجود منتجات
+            addProductRow(); // صف فارغ في حال عدم وجود منتجات مسبقاً
         }
 
         recalculateAll();
-        hideMessage();
+        showMessage(`تم جلب بيانات الطلب #${orderId} بنجاح`, 'success');
     } catch (err) {
-        showMessage('تعذر جلب الطلب: ' + err.message, 'error');
+        console.error('Error fetching order:', err);
+        showMessage('فشل جلب الطلب: ' + err.message, 'error');
     }
 }
 
-// 4. إضافة صف منتج للجدول
+// ----------------------------------------------------
+// 4. رسم وبناء أسطر المنتجات في الجدول
+// ----------------------------------------------------
 function addProductRow(detailData = null) {
     const tbody = document.getElementById('products-table-body');
     const rowId = 'row_' + Math.random().toString(36).substring(2, 9);
 
+    // بناء قائمة الاختيارات للمنتجات
     let productOptions = productsList.map(p => {
         const isSelected = detailData && detailData.id_product == p.id_product ? 'selected' : '';
         return `<option value="${p.id_product}" data-price="${p.seal_price || 0}" data-commission="${p.commission || 0}" ${isSelected}>
@@ -234,7 +261,7 @@ function addProductRow(detailData = null) {
     tbody.insertAdjacentHTML('beforeend', rowHTML);
 }
 
-// 5. التفاعل عند تغيير اختيار المنتج
+// عند تحديد منتج من القائمة
 function onProductSelect(selectEl) {
     const row = selectEl.closest('tr');
     const selectedOption = selectEl.options[selectEl.selectedIndex];
@@ -246,7 +273,7 @@ function onProductSelect(selectEl) {
     calculateRow(selectEl);
 }
 
-// 6. حساب قيمة السطر (المجموع والعمولة)
+// حساب القيمة والعمولة لكل سطر
 function calculateRow(inputEl) {
     const row = inputEl.closest('tr');
     const selectEl = row.querySelector('.product-select');
@@ -265,14 +292,13 @@ function calculateRow(inputEl) {
     recalculateAll();
 }
 
-// 7. حذف صف وترتيب الحسابات
 function deleteRow(rowId) {
     const row = document.getElementById(rowId);
     if (row) row.remove();
     recalculateAll();
 }
 
-// 8. إعادة حساب المجموع الكلي والعمولات الكلية
+// حساب المجموع الإجمالي لكافة العمولات والمبالغ
 function recalculateAll() {
     let totalAmount = 0;
     let totalCommission = 0;
@@ -286,12 +312,14 @@ function recalculateAll() {
     document.getElementById('total-commission').textContent = totalCommission.toFixed(2);
 }
 
-// 9. حفظ التعديلات وإرسالها إلى قواعد بيانات Supabase
+// ----------------------------------------------------
+// 5. إرسال وحفظ التعديلات إلى Supabase
+// ----------------------------------------------------
 async function handleFormSubmit(e) {
     e.preventDefault();
 
     if (!currentOrderId) {
-        showMessage('يرجى اختيار طلب أولاً للحفظ', 'error');
+        showMessage('يرجى البحث عن طلب وحمله قبل إجراء التعديلات والحفظ', 'error');
         return;
     }
 
@@ -306,7 +334,7 @@ async function handleFormSubmit(e) {
     const totalAmount = parseFloat(document.getElementById('total-amount').textContent) || 0;
 
     try {
-        // أ) تحديث جدول web_orders
+        // أ) تحديث بيانات العميل في web_orders
         const { error: orderUpdateErr } = await supabase
             .from('web_orders')
             .update({
@@ -320,7 +348,7 @@ async function handleFormSubmit(e) {
 
         if (orderUpdateErr) throw orderUpdateErr;
 
-        // ب) حذف تفاصيل المنتجات القديمة
+        // ب) حذف تفاصيل المنتجات القديمة الخاصة بالطلب
         const { error: deleteErr } = await supabase
             .from('web_order_details')
             .delete()
@@ -328,7 +356,7 @@ async function handleFormSubmit(e) {
 
         if (deleteErr) throw deleteErr;
 
-        // ج) تجهيز تفاصيل المنتجات الجديدة للإدراج
+        // ج) إدراج قائمة المنتجات الجديدة المحدثة
         const rows = document.querySelectorAll('#products-table-body tr');
         const newDetails = [];
 
@@ -355,16 +383,19 @@ async function handleFormSubmit(e) {
             if (insertErr) throw insertErr;
         }
 
-        showMessage('تم حفظ تعديلات الطلب بنجاح!', 'success');
+        showMessage('تم حفظ كافة التعديلات في قاعدة البيانات بنجاح!', 'success');
     } catch (err) {
-        showMessage('حدث خطأ أثناء الحفظ: ' + err.message, 'error');
+        console.error('Error saving data:', err);
+        showMessage('حدث خطأ أثناء حفظ التعديلات: ' + err.message, 'error');
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'حفظ التعديلات';
     }
 }
 
-// دواءل مساعدة لعرض الرسائل وإعادة الضبط
+// ----------------------------------------------------
+// 6. دوال مساعدة للواجهة
+// ----------------------------------------------------
 function showMessage(msg, type) {
     const box = document.getElementById('status-message');
     box.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
@@ -376,17 +407,13 @@ function showMessage(msg, type) {
     box.textContent = msg;
 }
 
-function hideMessage() {
-    document.getElementById('status-message').classList.add('hidden');
-}
-
 function resetForm() {
     document.getElementById('order-form').reset();
     document.getElementById('products-table-body').innerHTML = '';
     document.getElementById('total-amount').textContent = '0.00';
     document.getElementById('total-commission').textContent = '0.00';
     currentOrderId = null;
-    hideMessage();
+    document.getElementById('status-message').classList.add('hidden');
 }
 </script>
 
