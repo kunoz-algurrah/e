@@ -146,8 +146,7 @@
             <div id="modalInvoiceCard" class="modal-body"></div>
 
             <div class="modal-footer no-print">
-                <button onclick="closeInvoiceModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-5 rounded-xl text-xs transition">
-                    إغلاق</button>
+                <button onclick="closeInvoiceModal()" class="btn-modal btn-close-modal">إغلاق</button>
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                     <button onclick="sendToWhatsappDirectly()" class="btn-modal btn-whatsapp">💬 واتساب</button>
                     <button onclick="copyInvoiceText()" class="btn-modal btn-copy">📋 نسخ</button>
@@ -433,7 +432,22 @@ async function sendToWhatsappDirectly() {
             detailsList += `${idx + 1}. ${item.product_name || 'منتج'} (الكمية: ${item.qte || item.quantity || 1}) - المجموع: ${amount} ج.س\n`;
         });
     }
+function closeInvoiceModal() {
+            document.getElementById('invoiceModal').classList.remove('active');
+            currentActiveOrder = null;
+        }
 
+        async function sendToWhatsappDirectly() {
+            if (!currentActiveOrder) return;
+            const activeComm = typeof getActiveCommission === 'function' ? getActiveCommission(currentActiveOrder) : 0;
+            
+            let detailsList = '';
+            if (currentActiveOrder.web_order_details && currentActiveOrder.web_order_details.length > 0) {
+                currentActiveOrder.web_order_details.forEach((item, idx) => {
+                    const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+                    detailsList += `${idx + 1}. ${item.product_name || 'منتج'} (الكمية: ${item.qte || item.quantity || 1}) - المجموع: ${amount} ج.س\n`;
+                });
+            }
     let marketerSection = '';
     if (currentActiveOrder.custom_marketer_name || currentActiveOrder.custom_bank_name || currentActiveOrder.custom_marketer_account) {
         marketerSection = `------------------\n` +
