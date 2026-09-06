@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تعديل بيانات الطلب</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 p-6 font-sans">
+
+<div class="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow-md border border-gray-100">
+    <h2 class="text-2xl font-bold mb-6 text-gray-800 border-b pb-3">تعديل الطلب #<span id="order-id">101</span></h2>
+
+    <form id="edit-order-form" onsubmit="handleSubmit(event)">
+        <!-- بيانات العميل (web_orders) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">اسم العميل</label>
+                <input type="text" id="client_name" required class="w-full border-gray-300 border rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+                <input type="text" id="client_phone" required class="w-full border-gray-300 border rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف الاحتياطي</label>
+                <input type="text" id="client_second_phone" class="w-full border-gray-300 border rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">العنوان</label>
+                <input type="text" id="client_address" required class="w-full border-gray-300 border rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+        </div>
+
+        <!-- جدول تفاصيل المنتجات (web_order_details + products) -->
+        <div class="mb-6 overflow-x-auto">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg font-semibold text-gray-700">تفاصيل المنتجات</h3>
+                <button type="button" onclick="addProductRow()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm transition">
+                    <i class="fas fa-plus ml-1"></i> إضافة منتج
+                </button>
+            </div>
+
+            <table class="w-full text-right border-collapse border border-gray-200">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 text-sm">
+                        <th class="p-3 border">المنتج</th>
+                        <th class="p-3 border w-24">الكمية</th>
+                        <th class="p-3 border w-28">السعر</th>
+                        <th class="p-3 border w-28">المجموع</th>
+                        <th class="p-3 border w-28">العمولة</th>
+                        <th class="p-3 border w-16 text-center">إجراء</th>
+                    </tr>
+                </thead>
+                <tbody id="products-table-body">
+                    <!-- سيتم إضافة الصفوف هنا ديناميكياً -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- إجمالي الطلب -->
+        <div class="flex justify-between items-center border-t pt-4 mb-6">
+            <div class="text-gray-600">
+                إجمالي العمولات: <span id="total-commission" class="font-bold text-gray-800">0.00</span> د.إ
+            </div>
+            <div class="text-xl font-bold text-gray-800">
+                المبلغ الإجمالي: <span id="total-amount" class="text-blue-600">0.00</span> د.إ
+            </div>
+        </div>
+
+        <!-- أزرار الإجراءات -->
+        <div class="flex justify-end gap-3">
+            <button type="button" class="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-300">إلغاء</button>
+            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm">حفظ التعديلات</button>
+        </div>
+    </form>
+</div>
+
+<script>
+// قائمة المنتجات المعرفة في قاعدة البيانات (products)
+const availableProducts = [
+    { id_product: 1, name: "منتج A", seal_price: 100, commission: 10 },
+    { id_product: 2, name: "منتج B", seal_price: 250, commission: 25 },
+    { id_product: 3, name: "منتج C", seal_price: 50, commission: 5 }
+];
+
+// بيانات الطلب الحالية (Simulated API Response)
+const orderData = {
+    id_web_order: 101,
+    client_name: "أحمد علي",
+    client_phone: "0501234567",
+    client_second_phone: "0509876543",
+    client_address: "دبي - شارع الشيخ زايد",
+    details: [
+        { id_product: 1, qte: 2, price: 100, amount: 200, commission: 20 },
+        { id_product: 2, qte: 1, price: 250, amount: 250, commission: 25 }
+    ]
+};
+
+// تحميل البيانات عند فتح الصفحة
+window.onload = function() {
+    document.getElementById('client_name').value = orderData.client_name;
+    document.getElementById('client_phone').value = orderData.client_phone;
+    document.getElementById('client_second_phone').value = orderData.client_second_phone;
+    document.getElementById('client_address').value = orderData.client_address;
+
+    orderData.details.forEach(item => addProductRow(item));
+    calculateTotals();
+};
+
+// إضافة صف منتج جديد
+function addProductRow(detail = null) {
+    const tbody = document.getElementById('products-table-body');
+    const rowId = Date.now();
+
+    let options = availableProducts.map(p => 
+        `<option value="${p.id_product}" data-price="${p.seal_price}" data-commission="${p.commission}" 
+        ${detail && detail.id_product === p.id_product ? 'selected' : ''}>${p.name}</option>`
+    ).join('');
+
+    const rowHTML = `
+        <tr id="row-${rowId}" class="border-b">
+            <td class="p-2 border">
+                <select onchange="onProductChange(this)" class="product-select w-full border rounded p-1.5 focus:outline-none">
+                    <option value="">اختر المنتج...</option>
+                    ${options}
+                </select>
+            </td>
+            <td class="p-2 border">
+                <input type="number" min="1" value="${detail ? detail.qte : 1}" oninput="calculateRow(this)" class="qte-input w-full border rounded p-1.5 text-center focus:outline-none">
+            </td>
+            <td class="p-2 border">
+                <input type="number" step="0.01" value="${detail ? detail.price : 0}" oninput="calculateRow(this)" class="price-input w-full border rounded p-1.5 text-center focus:outline-none">
+            </td>
+            <td class="p-2 border text-center font-semibold text-gray-700 amount-cell">
+                ${detail ? detail.amount : 0}
+            </td>
+            <td class="p-2 border text-center text-gray-600 commission-cell">
+                ${detail ? detail.commission : 0}
+            </td>
+            <td class="p-2 border text-center">
+                <button type="button" onclick="removeRow('row-${rowId}')" class="text-red-500 hover:text-red-700">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+    tbody.insertAdjacentHTML('beforeend', rowHTML);
+}
+
+// عند تغيير اختيار المنتج
+function onProductChange(selectEl) {
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    const row = selectEl.closest('tr');
+    
+    if (selectedOption.value) {
+        const price = parseFloat(selectedOption.getAttribute('data-price')) || 0;
+        row.querySelector('.price-input').value = price;
+    }
+    calculateRow(selectEl);
+}
+
+// حساب المجموع والعمولة للصف الواحد
+function calculateRow(element) {
+    const row = element.closest('tr');
+    const selectEl = row.querySelector('.product-select');
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+
+    const qte = parseFloat(row.querySelector('.qte-input').value) || 0;
+    const price = parseFloat(row.querySelector('.price-input').value) || 0;
+    const baseCommission = parseFloat(selectedOption?.getAttribute('data-commission')) || 0;
+
+    const amount = qte * price;
+    const totalCommission = qte * baseCommission; // عمولة القطعة * الكمية
+
+    row.querySelector('.amount-cell').innerText = amount.toFixed(2);
+    row.querySelector('.commission-cell').innerText = totalCommission.toFixed(2);
+
+    calculateTotals();
+}
+
+// حذف صف
+function removeRow(rowId) {
+    document.getElementById(rowId).remove();
+    calculateTotals();
+}
+
+// حساب الإجمالي الكلي والعمولات الكلية
+function calculateTotals() {
+    let totalAmount = 0;
+    let totalCommission = 0;
+
+    document.querySelectorAll('#products-table-body tr').forEach(row => {
+        totalAmount += parseFloat(row.querySelector('.amount-cell').innerText) || 0;
+        totalCommission += parseFloat(row.querySelector('.commission-cell').innerText) || 0;
+    });
+
+    document.getElementById('total-amount').innerText = totalAmount.toFixed(2);
+    document.getElementById('total-commission').innerText = totalCommission.toFixed(2);
+}
+
+// معالجة حفظ البيانات (Submit)
+function handleSubmit(event) {
+    event.preventDefault();
+
+    const updatedOrder = {
+        id_web_order: orderData.id_web_order,
+        client_name: document.getElementById('client_name').value,
+        client_phone: document.getElementById('client_phone').value,
+        client_second_phone: document.getElementById('client_second_phone').value,
+        client_address: document.getElementById('client_address').value,
+        total_amount: parseFloat(document.getElementById('total-amount').innerText),
+        details: []
+    };
+
+    document.querySelectorAll('#products-table-body tr').forEach(row => {
+        const select = row.querySelector('.product-select');
+        if(select.value) {
+            updatedOrder.details.push({
+                id_product: parseInt(select.value),
+                product_name: select.options[select.selectedIndex].text,
+                qte: parseFloat(row.querySelector('.qte-input').value),
+                price: parseFloat(row.querySelector('.price-input').value),
+                amount: parseFloat(row.querySelector('.amount-cell').innerText),
+                commission: parseFloat(row.querySelector('.commission-cell').innerText)
+            });
+        }
+    });
+
+    console.log("البيانات الجاهزة للإرسال إلى السيرفر:", JSON.stringify(updatedOrder, null, 2));
+    alert('تم تجهيز بيانات التحديث بنجاح! راجع الـ Console.');
+}
+</script>
+
+</body>
+</html>
