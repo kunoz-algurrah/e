@@ -20,7 +20,7 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-xl font-bold">تعديل الطلب #<span id="active-order-id" class="text-yellow-400">---</span></h1>
-                <p class="text-xs text-gray-300 mt-1">إمكانية تعديل بيانات العميل، المنتجات، والعمولات المخصصة</p>
+                <p class="text-xs text-gray-300 mt-1">جلب القيمة المخزنة للعمولة تلقائياً وإمكانية تعديلها</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -129,7 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadProducts();
     await loadOrdersList();
     
-    // ربط الأحداث للأزرار
     document.getElementById('btn-fetch').addEventListener('click', () => {
         const id = document.getElementById('manual-order-id').value;
         if (id) fetchSingleOrder(id);
@@ -174,7 +173,7 @@ async function loadProducts() {
     }
 }
 
-// 4. جلب قائمة بأحدث الطلبات المتاحة
+// 4. جلب قائمة الطلبات
 async function loadOrdersList() {
     try {
         const { data, error } = await client
@@ -193,8 +192,6 @@ async function loadOrdersList() {
                 select.innerHTML += `<option value="${o.id_web_order}">طلب #${o.id_web_order} - ${o.client_name || 'بدون اسم'}</option>`;
             });
             showAlert("تم تحميل الطلبات المتاحة بنجاح", "success");
-            
-            // تحميل أحدث طلب تلقائياً
             fetchSingleOrder(data[0].id_web_order);
         } else {
             select.innerHTML = '<option value="">لا توجد طلبات</option>';
@@ -220,7 +217,7 @@ async function fetchSingleOrder(orderId) {
 
         if (orderErr) throw orderErr;
 
-        // ب) جلب بيانات web_order_details
+        // ب) جلب بيانات web_order_details الكاملة
         const { data: details, error: detailsErr } = await client
             .from('web_order_details')
             .select('*')
@@ -258,20 +255,20 @@ async function fetchSingleOrder(orderId) {
     }
 }
 
-// 6. إضافة صف لجدول المنتجات مع إمكانية تعديل العمولة
+// 6. إضافة صف لجدول المنتجات وقراءة العمولة المخزنة أو الافتراضية
 function addNewRow(data = null) {
     const tbody = document.getElementById('items-tbody');
     const tr = document.createElement('tr');
     tr.className = "hover:bg-gray-50 transition";
 
-    let selectedProductCommission = 0;
+    let productDefaultCommission = 0;
 
     // خيارات المنتجات
     let options = `<option value="">-- اختر المنتج --</option>`;
     globalProducts.forEach(p => {
         const isSelected = data && data.id_product == p.id_product;
         if (isSelected) {
-            selectedProductCommission = p.commission || 0;
+            productDefaultCommission = p.commission || 0;
         }
         options += `<option value="${p.id_product}" data-price="${p.seal_price || 0}" data-commission="${p.commission || 0}" ${isSelected ? 'selected' : ''}>
             ${p.product_name}
@@ -281,10 +278,15 @@ function addNewRow(data = null) {
     const defaultQte = data ? data.qte : 1;
     const defaultPrice = data ? data.price : 0;
     
-    // إذا كانت العمولة مسجلة سابقاً في التفاصيل نعتمدها، وإلا نأخذ العمولة الافتراضية من جدول المنتجات
-    const defaultCommission = (data && data.commission !== undefined && data.commission !== null) 
-        ? data.commission 
-        : selectedProductCommission;
+    // منطق جلب العمولة:
+    // 1. القيمة المخزنة سابقاً في web_order_details (سواء كانت 0 أو غيرها)
+    // 2. إذا كان صفاً جديداً تماماً (data === null)، تُجلب العمولة الافتراضية من جدول products
+    let initialCommission = 0;
+    if (data !== null && data.commission !== undefined && data.commission !== null) {
+        initialCommission = data.commission;
+    } else {
+        initialCommission = productDefaultCommission;
+    }
 
     tr.innerHTML = `
         <td class="p-2">
@@ -299,7 +301,7 @@ function addNewRow(data = null) {
             <input type="number" min="0" step="any" value="${defaultPrice}" class="prod-price w-full border rounded-lg p-2 text-center text-xs focus:ring-2 focus:ring-blue-500 outline-none">
         </td>
         <td class="p-2">
-            <input type="number" min="0" step="any" value="${defaultCommission}" class="prod-commission w-full border border-emerald-300 bg-emerald-50 rounded-lg p-2 text-center text-xs font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none">
+            <input type="number" min="0" step="any" value="${initialCommission}" class="prod-commission w-full border border-emerald-300 bg-emerald-50 rounded-lg p-2 text-center text-xs font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none">
         </td>
         <td class="p-2 text-center font-bold text-gray-700 cell-amount">0.00</td>
         <td class="p-2 text-center font-bold text-emerald-600 cell-total-commission">0.00</td>
@@ -312,14 +314,13 @@ function addNewRow(data = null) {
 
     tbody.appendChild(tr);
 
-    // عناصر الصف
     const select = tr.querySelector('.prod-select');
     const qteInput = tr.querySelector('.prod-qte');
     const priceInput = tr.querySelector('.prod-price');
     const commInput = tr.querySelector('.prod-commission');
     const removeBtn = tr.querySelector('.btn-remove');
 
-    // تحديث البيانات تلقائياً عند تغيير المنتج
+    // عند تغيير المنتج يدوياً يتم تحديث السعر والعمولة الافتراضية
     select.addEventListener('change', () => {
         const opt = select.options[select.selectedIndex];
         if (opt && opt.value) {
@@ -341,7 +342,7 @@ function addNewRow(data = null) {
     updateRowCalculation(tr);
 }
 
-// 7. حساب إجمالي الصف بناءً على قيم القنايات والعمولة المعدلة
+// 7. حساب الصف
 function updateRowCalculation(tr) {
     const qte = parseFloat(tr.querySelector('.prod-qte').value) || 0;
     const price = parseFloat(tr.querySelector('.prod-price').value) || 0;
@@ -356,7 +357,7 @@ function updateRowCalculation(tr) {
     recalculateTotal();
 }
 
-// 8. حساب إجماليات الطلب والعمولة الكلية
+// 8. حساب الإجماليات
 function recalculateTotal() {
     let totalAmount = 0;
     let totalCommission = 0;
@@ -370,7 +371,7 @@ function recalculateTotal() {
     document.getElementById('summary-commission').textContent = totalCommission.toFixed(2);
 }
 
-// 9. حفظ جميع التعديلات
+// 9. حفظ والتعديل
 async function handleSave(e) {
     e.preventDefault();
 
@@ -412,7 +413,7 @@ async function handleSave(e) {
 
         if (deleteErr) throw deleteErr;
 
-        // ج) إدراج التفاصيل الجديدة بالعمولات المعدلة
+        // ج) إدراج التفاصيل الجديدة بالعمولة المحددة
         const newDetails = [];
         document.querySelectorAll('#items-tbody tr').forEach(tr => {
             const select = tr.querySelector('.prod-select');
@@ -430,20 +431,19 @@ async function handleSave(e) {
                     product_name: rawName,
                     qte: qte,
                     price: price,
-                    commission: commission, // إرسال العمولة المعدلة
+                    commission: commission,
                     amount: qte * price
                 });
             }
         });
 
         if (newDetails.length > 0) {
-            // محاولة الحفظ بالعمولة، وإذا لم يكن عمود commission موجوداً بالجدول نرسلها بدونها لتفادي خطأ Database Schema
             let { error: insertErr } = await client
                 .from('web_order_details')
                 .insert(newDetails);
 
             if (insertErr && insertErr.message.includes('commission')) {
-                console.warn("عمود commission غير موجود في web_order_details، جاري الحفظ بدونه...");
+                console.warn("تنبيه: العمود commission غير متاح في قاعدة البيانات، سيتم تخزين بقية التفاصيل.");
                 const fallbackDetails = newDetails.map(({ commission, ...rest }) => rest);
                 const res = await client.from('web_order_details').insert(fallbackDetails);
                 if (res.error) throw res.error;
@@ -452,7 +452,7 @@ async function handleSave(e) {
             }
         }
 
-        showAlert(`تم حفظ الطلب #${currentOrderId} بالعمولات الجديدة بنجاح!`, 'success');
+        showAlert(`تم حفظ الطلب #${currentOrderId} بجميع القيم والعمولات بنجاح!`, 'success');
 
     } catch (err) {
         console.error("خطأ أثناء الحفظ:", err);
