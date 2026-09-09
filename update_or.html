@@ -167,7 +167,7 @@ async function loadProducts() {
 
         if (error) throw error;
         globalProducts = data || [];
-        console.log("تم جلب المنتجات والعمولات الاصليّة:", globalProducts);
+        console.log("تم جلب المنتجات والعمولات الأصليّة:", globalProducts);
     } catch (err) {
         console.error("خطأ جلب المنتجات:", err);
         showAlert("فشل جلب المنتجات من جدول products: " + err.message, "error");
@@ -209,7 +209,6 @@ async function fetchSingleOrder(orderId) {
     try {
         showAlert(`جاري جلب الطلب رقم #${orderId}...`, 'info');
         
-        // أ) جلب بيانات web_orders
         const { data: order, error: orderErr } = await client
             .from('web_orders')
             .select('*')
@@ -218,7 +217,6 @@ async function fetchSingleOrder(orderId) {
 
         if (orderErr) throw orderErr;
 
-        // ب) جلب بيانات web_order_details
         const { data: details, error: detailsErr } = await client
             .from('web_order_details')
             .select('*')
@@ -231,13 +229,11 @@ async function fetchSingleOrder(orderId) {
         document.getElementById('manual-order-id').value = currentOrderId;
         document.getElementById('orders-select').value = currentOrderId;
 
-        // ملء خانات العميل
         document.getElementById('client_name').value = order.client_name || '';
         document.getElementById('client_phone').value = order.client_phone || '';
         document.getElementById('client_second_phone').value = order.client_second_phone || '';
         document.getElementById('client_address').value = order.client_address || '';
 
-        // ملء جدول التفاصيل
         const tbody = document.getElementById('items-tbody');
         tbody.innerHTML = '';
 
@@ -256,7 +252,7 @@ async function fetchSingleOrder(orderId) {
     }
 }
 
-// 6. إضافة صف وقراءة العمولة مباشرةً من جدول products الأصلي
+// 6. إضافة صف
 function addNewRow(data = null) {
     const tbody = document.getElementById('items-tbody');
     const tr = document.createElement('tr');
@@ -264,7 +260,6 @@ function addNewRow(data = null) {
 
     let fetchedCommissionFromProducts = 0;
 
-    // بناء خيارات قائمة المنتجات
     let options = `<option value="">-- اختر المنتج --</option>`;
     globalProducts.forEach(p => {
         const isSelected = data && data.id_product == p.id_product;
@@ -338,7 +333,7 @@ function addNewRow(data = null) {
     updateRowCalculation(tr);
 }
 
-// 7. حساب الصف بناءً على قيم العمولة
+// 7. حساب الصف
 function updateRowCalculation(tr) {
     const qte = parseFloat(tr.querySelector('.prod-qte').value) || 0;
     const price = parseFloat(tr.querySelector('.prod-price').value) || 0;
@@ -367,7 +362,7 @@ function recalculateTotal() {
     document.getElementById('summary-commission').textContent = totalCommission.toFixed(2);
 }
 
-// 9. حفظ التعديلات وتحديث العمولات بجدول products
+// 9. حفظ التعديلات وإرسال التحديثات لـ products
 async function handleSave(e) {
     e.preventDefault();
 
@@ -378,7 +373,7 @@ async function handleSave(e) {
 
     const saveBtn = document.getElementById('btn-save');
     saveBtn.disabled = true;
-    saveBtn.textContent = 'جاري الحفظ وتحديث العمولات...';
+    saveBtn.textContent = 'جاري الحفظ والتحديث...';
 
     try {
         const clientName = document.getElementById('client_name').value;
@@ -387,7 +382,7 @@ async function handleSave(e) {
         const clientAddress = document.getElementById('client_address').value;
         const totalAmount = parseFloat(document.getElementById('summary-total').textContent) || 0;
 
-        // أ) تحديث web_orders
+        // أ) تحديث بيانات العميل والطلب في web_orders
         const { error: updateOrderErr } = await client
             .from('web_orders')
             .update({
@@ -401,7 +396,7 @@ async function handleSave(e) {
 
         if (updateOrderErr) throw updateOrderErr;
 
-        // ب) حذف تفاصيل الطلب القديمة
+        // ب) حذف التفاصيل القديمة للطلب
         const { error: deleteErr } = await client
             .from('web_order_details')
             .delete()
@@ -409,14 +404,14 @@ async function handleSave(e) {
 
         if (deleteErr) throw deleteErr;
 
-        // ج) إدراج التفاصيل الجديدة وتحديث جدول المنتجات products بالقيم الجديدة
+        // ج) إدراج التفاصيل الجديدة وتحديث جدول المنتجات products
         const newDetails = [];
         const trs = document.querySelectorAll('#items-tbody tr');
 
         for (const tr of trs) {
             const select = tr.querySelector('.prod-select');
             if (select && select.value) {
-                const productId = parseInt(select.value);
+                const productId = Number(select.value);
                 const opt = select.options[select.selectedIndex];
                 const qte = parseFloat(tr.querySelector('.prod-qte').value) || 0;
                 const price = parseFloat(tr.querySelector('.prod-price').value) || 0;
@@ -424,7 +419,6 @@ async function handleSave(e) {
                 
                 const rawName = opt.text.trim();
 
-                // إعداد بيانات تفاصيل الطلب
                 newDetails.push({
                     id_web_order: currentOrderId,
                     id_product: productId,
@@ -444,12 +438,11 @@ async function handleSave(e) {
                     .eq('id_product', productId);
 
                 if (prodUpdateErr) {
-                    console.error(`خطأ في تحديث بيانات المنتج ID ${productId}:`, prodUpdateErr);
+                    throw new Error(`فشل تحديث جدول المنتجات (products) للمنتج رقم ${productId}: ${prodUpdateErr.message}`);
                 }
             }
         }
 
-        // إدراج صفوف التفاصيل الجديدة
         if (newDetails.length > 0) {
             const { error: insertErr } = await client
                 .from('web_order_details')
@@ -458,10 +451,10 @@ async function handleSave(e) {
             if (insertErr) throw insertErr;
         }
 
-        // إعادة جلب المنتجات لتكون البيانات المحلية محدثة
+        // إجبار إعادة جلب قائمة المنتجات المحدثة
         await loadProducts();
 
-        showAlert(`تم حفظ الطلب #${currentOrderId} وتحديث المنتجات بنجاح!`, 'success');
+        showAlert(`تم الحفظ بنجاح وتحديث العمولة والسعر في جدول المنتجات!`, 'success');
 
     } catch (err) {
         console.error("خطأ أثناء الحفظ:", err);
