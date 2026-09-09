@@ -10,9 +10,11 @@
     <style>
         body { font-family: 'Cairo', sans-serif; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        /* أنيميشن النبض لهيكل التحميل السريع */
         .skeleton { animation: pulse 1.5s infinite ease-in-out; }
         @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        /* إخفاء شريط التمرير الأفقي للأقسام مع حفظ التمرير */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -21,12 +23,10 @@
     <div class="bg-gray-900 text-white text-xs py-2 px-4 border-b border-gray-800">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
             <div class="font-semibold text-gray-300">
-                ✨ أهلاً بك في متجر متجر كنوز الغرة للأجهزة الكهربائية والمنزلية (KUNOZ AL-GURRAH)
+                ✨ أهلاً بك في متجر كنوز الغرة للأجهزة الكهربائية والمنزلية (KUNOZ AL-GURRAH)
             </div>
             <div class="flex items-center gap-4 font-bold">
-                
-                   للطلب : <span dir="ltr">عبر الواتساب</span>
-                </a>
+                <span>للطلب : عبر الواتساب</span>
                 <span class="text-gray-700 hidden sm:inline">|</span>
                 <a href="https://wa.me/+2491128321170" target="_blank" class="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg transition flex items-center gap-1">
                     💬 واتساب مباشر
@@ -50,16 +50,25 @@
 
     <header class="relative bg-gray-900 text-white py-16 px-4 text-center">
         <div class="absolute inset-0 opacity-40 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=1000&auto=format&fit=crop');"></div>
-<div class="relative max-w-2xl mx-auto z-10">
+        <div class="relative max-w-2xl mx-auto z-10">
             <h1 class="text-3xl md:text-5xl font-extrabold mb-4">أحدث الأجهزة المنزلية والكهربائية</h1>
             <p class="text-sm md:text-base text-gray-300">تجهيزات المطابخ، الشاشات، أجهزة التكييف والحلول المنزلية المتكاملة بأفضل الأسعار.</p>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-10">
-        <h2 class="text-xl md:text-2xl font-bold mb-6">✨ أحدث معروضاتنا المتاحة</h2>
+        <!-- قسم فلترة الأقسام -->
+        <section class="mb-8">
+            <h2 class="text-lg font-bold text-gray-700 mb-3">📂 اختر القسم:</h2>
+            <div id="departmentsContainer" class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                <!-- أزرار الأقسام سيتم إنشاؤها هنا ديناميكياً -->
+                <button class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm whitespace-nowrap">الكل</button>
+            </div>
+        </section>
+
+        <h2 id="sectionTitle" class="text-xl md:text-2xl font-bold mb-6">✨ جميع المعروضات المتاحة</h2>
         
-        <!-- شبكة المنتجات وتحتوي افتراضياً على هيكل تحميل مؤقت فوري لمنع شعور العميل بالبطء -->
+        <!-- شبكة المنتجات -->
         <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton">
                 <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
@@ -73,18 +82,6 @@
                 <div class="h-4 bg-gray-200 rounded w-1/2"></div>
                 <div class="h-8 bg-gray-200 rounded-xl w-full mt-2"></div>
             </div>
-            <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton hidden md:block">
-                <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
-                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                <div class="h-8 bg-gray-200 rounded-xl w-full mt-2"></div>
-            </div>
-            <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton hidden lg:block">
-                <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
-                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                <div class="h-8 bg-gray-200 rounded-xl w-full mt-2"></div>
-            </div>
         </div>
     </main>
 
@@ -92,58 +89,103 @@
         const supabaseClient = supabase.createClient(
             "https://ihlwkwiimimoiplfqcdk.supabase.co",
             "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
-
         );
 
         let products = [];
+        let selectedDepartment = "all";
         let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
 
         async function fetchProducts() {
             try {
-                // تسريع الجلب: طلب الأعمدة الهامة فقط بدلاً من * الشاملة والبطيئة
+                // إضافة حقل department إلى استعلام Supabase
                 const { data, error } = await supabaseClient
                     .from("products")
-                    .select("id_product, product_name , seal_price , qte_in_stock , image_url");
+                    .select("id_product, product_name, seal_price, qte_in_stock, image_url, department");
                 
                 if (!error && data && data.length > 0) {
                     products = data;
-                    console.log("تم جلب البيانات الحية من سوبابيز بنجاح وسرعة.");
+                    console.log("تم جلب المنتجات والأقسام بنجاح.");
                 } else {
                     throw new Error("بيانات فارغة أو مشكلة اتصال");
                 }
             } catch (error) {
-                console.warn("تم التحويل للوضع الاحتياطي الفوري والسريع:", error.message);
-                // تم إصلاح الأخطاء البرمجية هنا وإضافة مخزون افتراضي لتعمل فوراً عند انقطاع الإنترنت
+                console.warn("استخدام بيانات احتياطية:", error.message);
                 products = [
-                    { id_product: 101, product_name: " جاري التحميل  ", seal_price: 00, qte_in_stock: 10 },
-                    
+                    { id_product: 101, product_name: "ثلاجة 16 قدم", seal_price: 250000, qte_in_stock: 5, department: "أجهزة منزلية" },
+                    { id_product: 102, product_name: "شاشة 55 بوصة Smart", seal_price: 180000, qte_in_stock: 3, department: "شاشات وإلكترونيات" },
+                    { id_product: 103, product_name: "خلاط كهربائي 2 في 1", seal_price: 35000, qte_in_stock: 8, department: "أجهزة المطبخ" }
                 ];
             }
+            
+            renderDepartments();
             renderProducts();
             updateCartCount();
+        }
+
+        // استخراج وتنسيق أزرار الأقسام المتاحة
+        function renderDepartments() {
+            // استخراج الأقسام الفريدة مع تصفية القيم الفارغة
+            const departments = ["all", ...new Set(products.map(p => p.department).filter(Boolean))];
+            
+            let html = "";
+            departments.forEach(dept => {
+                const isActive = selectedDepartment === dept;
+                const label = dept === "all" ? "الكل 🛍️" : dept;
+                const activeClasses = isActive ? "bg-blue-600 text-white shadow-md font-bold" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100 font-semibold";
+                
+                html += `
+                    <button onclick="filterByDepartment('${dept}')" class="px-4 py-2 rounded-xl text-sm transition whitespace-nowrap ${activeClasses}">
+                        ${label}
+                    </button>
+                `;
+            });
+            
+            document.getElementById("departmentsContainer").innerHTML = html;
+        }
+
+        // تصفية حسب القسم المختار
+        function filterByDepartment(dept) {
+            selectedDepartment = dept;
+            renderDepartments();
+            renderProducts();
+            
+            // تحديث عنوان المعرض بناءً على القسم
+            document.getElementById("sectionTitle").innerText = dept === "all" 
+                ? "✨ جميع المعروضات المتاحة" 
+                : `✨ قسم: ${dept}`;
         }
 
         function renderProducts() {
             let html = "";
             let fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500"; 
             
-            const availableProducts = products.filter(p => (Number(p.qte_in_stock) || 0) > 0);
+            // تصفية المنتجات حسب المخزون ثم حسب القسم المحدد
+            const filteredProducts = products.filter(p => {
+                const hasStock = (Number(p.qte_in_stock) || 0) > 0;
+                const matchesDept = selectedDepartment === "all" || p.department === selectedDepartment;
+                return hasStock && matchesDept;
+            });
 
-            if (availableProducts.length === 0) {
-                document.getElementById("productsGrid").innerHTML = `<div class="col-span-full text-center py-12 text-gray-400">لا توجد منتجات متاحة في المخزون حالياً.</div>`;
+            if (filteredProducts.length === 0) {
+                document.getElementById("productsGrid").innerHTML = `
+                    <div class="col-span-full text-center py-12 text-gray-400 font-semibold">
+                        لا توجد منتجات متاحة في هذا القسم حالياً.
+                    </div>`;
                 return;
             }
 
-            availableProducts.forEach(p => {
+            filteredProducts.forEach(p => {
                 let price = Number(p.seal_price) || 0;
                 let productName = p.product_name || "منتج غير مسمى";
-                let imgUrl = p.image_url  || fallbackImg;
+                let imgUrl = p.image_url || fallbackImg;
+                let deptBadge = p.department ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md self-start mb-1">${p.department}</span>` : "";
                 
                 html += `
                 <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col justify-between p-4 transform transition duration-200 hover:shadow-md">
                     <img src="${imgUrl}" alt="${productName}" class="w-full h-48 object-cover rounded-xl bg-gray-100 mb-3" loading="lazy" onerror="this.src='${fallbackImg}'">
                     <div class="flex-1 flex flex-col justify-between gap-2">
                         <div>
+                            ${deptBadge}
                             <h3 class="font-bold text-gray-800 text-sm line-clamp-2">${productName}</h3>
                             <div class="text-blue-600 font-extrabold text-base mt-1">${price.toFixed(2)} ج.س</div>
                         </div>
